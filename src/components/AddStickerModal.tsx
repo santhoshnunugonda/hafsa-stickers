@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useCallback } from 'react'
+import { useState, useRef } from 'react'
 import { Sticker, generateId, CATEGORIES } from '@/lib/stickers'
 
 interface AddStickerModalProps {
@@ -14,15 +14,18 @@ export default function AddStickerModal({ onAdd, onClose }: AddStickerModalProps
   const [name, setName] = useState('')
   const [category, setCategory] = useState('Custom')
   const [preview, setPreview] = useState<string | null>(null)
+  const [fileType, setFileType] = useState<'image' | 'video'>('image')
   const [dragOver, setDragOver] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
 
   const handleFile = (file: File) => {
-    if (!file.type.startsWith('image/')) return
+    const isVid = file.type.startsWith('video/')
+    if (!file.type.startsWith('image/') && !isVid) return
     const reader = new FileReader()
     reader.onload = (e) => {
       const src = e.target?.result as string
       setPreview(src)
+      setFileType(isVid ? 'video' : 'image')
       if (!name) setName(file.name.replace(/\.[^/.]+$/, ''))
     }
     reader.readAsDataURL(file)
@@ -43,6 +46,7 @@ export default function AddStickerModal({ onAdd, onClose }: AddStickerModalProps
       src: preview,
       category,
       addedAt: Date.now(),
+      type: fileType,
     }
     onAdd(sticker)
   }
@@ -54,7 +58,7 @@ export default function AddStickerModal({ onAdd, onClose }: AddStickerModalProps
         <div className="bg-gradient-to-r from-pink-500 to-purple-500 p-5 flex items-center justify-between">
           <div>
             <h2 className="text-white font-black text-xl">Add New Sticker</h2>
-            <p className="text-pink-100 text-sm">Upload an image to add to your collection</p>
+            <p className="text-pink-100 text-sm">Upload an image or MP4 video sticker</p>
           </div>
           <button
             onClick={onClose}
@@ -77,11 +81,25 @@ export default function AddStickerModal({ onAdd, onClose }: AddStickerModalProps
           >
             {preview ? (
               <div className="relative">
-                <img
-                  src={preview}
-                  alt="Preview"
-                  className="max-h-40 max-w-full rounded-xl object-contain"
-                />
+                {fileType === 'video' ? (
+                  <video
+                    src={preview}
+                    autoPlay
+                    loop
+                    muted
+                    playsInline
+                    className="max-h-40 max-w-full rounded-xl object-contain"
+                  />
+                ) : (
+                  <img
+                    src={preview}
+                    alt="Preview"
+                    className="max-h-40 max-w-full rounded-xl object-contain"
+                  />
+                )}
+                <span className="absolute -top-2 -left-2 bg-purple-500 text-white text-xs font-bold px-2 py-0.5 rounded-full">
+                  {fileType === 'video' ? '🎬 MP4' : '🖼️ Image'}
+                </span>
                 <button
                   onClick={(e) => { e.stopPropagation(); setPreview(null) }}
                   className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold"
@@ -91,41 +109,45 @@ export default function AddStickerModal({ onAdd, onClose }: AddStickerModalProps
               </div>
             ) : (
               <>
-                <div className="text-5xl mb-3">🖼️</div>
+                <div className="text-5xl mb-3">🖼️🎬</div>
                 <p className="font-semibold text-gray-600 text-center">
-                  Click or drag &amp; drop image
+                  Click or drag &amp; drop
                 </p>
-                <p className="text-sm text-gray-400 mt-1">PNG, JPG, GIF, WebP supported</p>
+                <p className="text-sm text-gray-400 mt-1">PNG, JPG, GIF, WebP, <strong>MP4</strong>, WebM</p>
               </>
             )}
           </div>
           <input
             ref={fileRef}
             type="file"
-            accept="image/*"
+            accept="image/*,video/mp4,video/webm,video/ogg,video/mov"
             className="hidden"
             onChange={(e) => e.target.files?.[0] && handleFile(e.target.files[0])}
           />
 
+          {/* Video tip */}
+          {fileType === 'video' && (
+            <div className="bg-purple-50 rounded-xl p-3 flex gap-2 items-start text-xs text-purple-700">
+              <span className="text-base">💡</span>
+              <span>Video stickers can be <strong>downloaded</strong> and sent as videos in WhatsApp.</span>
+            </div>
+          )}
+
           {/* Name */}
           <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-1">
-              Sticker Name
-            </label>
+            <label className="block text-sm font-semibold text-gray-700 mb-1">Sticker Name</label>
             <input
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="e.g. Hafsa Vibing 😄"
+              placeholder="e.g. Hafsa Dancing 💃"
               className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-pink-400 focus:ring-2 focus:ring-pink-100"
             />
           </div>
 
           {/* Category */}
           <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-1">
-              Category
-            </label>
+            <label className="block text-sm font-semibold text-gray-700 mb-1">Category</label>
             <div className="flex flex-wrap gap-2">
               {CUSTOM_CATEGORIES.map((cat) => (
                 <button

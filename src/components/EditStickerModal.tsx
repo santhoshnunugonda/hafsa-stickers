@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useRef } from 'react'
-import { Sticker, CATEGORIES } from '@/lib/stickers'
+import { Sticker, CATEGORIES, isVideo } from '@/lib/stickers'
 
 interface EditStickerModalProps {
   sticker: Sticker
@@ -15,13 +15,16 @@ export default function EditStickerModal({ sticker, onSave, onClose }: EditStick
   const [name, setName] = useState(sticker.name)
   const [category, setCategory] = useState(sticker.category)
   const [preview, setPreview] = useState<string>(sticker.src)
+  const [previewType, setPreviewType] = useState<'image' | 'video'>(sticker.type ?? 'image')
   const fileRef = useRef<HTMLInputElement>(null)
 
   const handleFile = (file: File) => {
-    if (!file.type.startsWith('image/')) return
+    const isVid = file.type.startsWith('video/')
+    if (!file.type.startsWith('image/') && !isVid) return
     const reader = new FileReader()
     reader.onload = (e) => {
       setPreview(e.target?.result as string)
+      setPreviewType(isVid ? 'video' : 'image')
     }
     reader.readAsDataURL(file)
   }
@@ -32,6 +35,7 @@ export default function EditStickerModal({ sticker, onSave, onClose }: EditStick
       name: name.trim() || sticker.name,
       category,
       src: preview,
+      type: previewType,
     })
   }
 
@@ -56,22 +60,33 @@ export default function EditStickerModal({ sticker, onSave, onClose }: EditStick
           {/* Current image preview */}
           <div className="flex flex-col items-center gap-3">
             <div className="relative w-36 h-36 rounded-2xl overflow-hidden bg-gradient-to-br from-pink-50 to-purple-50 border-2 border-pink-100">
-              <img
-                src={preview}
-                alt={name}
-                className="w-full h-full object-cover"
-              />
+              {previewType === 'video' ? (
+                <video
+                  src={preview}
+                  autoPlay
+                  loop
+                  muted
+                  playsInline
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                <img
+                  src={preview}
+                  alt={name}
+                  className="w-full h-full object-cover"
+                />
+              )}
             </div>
             <button
               onClick={() => fileRef.current?.click()}
               className="text-sm text-pink-500 font-semibold hover:text-pink-700 underline underline-offset-2"
             >
-              🔄 Replace Image
+              🔄 Replace Image/Video
             </button>
             <input
               ref={fileRef}
               type="file"
-              accept="image/*"
+              accept="image/*,video/mp4,video/webm,video/ogg"
               className="hidden"
               onChange={(e) => e.target.files?.[0] && handleFile(e.target.files[0])}
             />
@@ -132,3 +147,4 @@ export default function EditStickerModal({ sticker, onSave, onClose }: EditStick
     </div>
   )
 }
+

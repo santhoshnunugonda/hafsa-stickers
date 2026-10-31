@@ -11,6 +11,7 @@ import {
   generateId,
   copyImageToClipboard,
   downloadSticker,
+  isVideo,
 } from '@/lib/stickers'
 import StickerCard from '@/components/StickerCard'
 import AddStickerModal from '@/components/AddStickerModal'
@@ -46,6 +47,10 @@ export default function Home() {
   })
 
   const handleCopy = async (sticker: Sticker) => {
+    if (isVideo(sticker)) {
+      toast('⬇️ Video sticker — use Download to save it!', { icon: '🎬' })
+      return
+    }
     try {
       await copyImageToClipboard(sticker.src)
       setCopiedId(sticker.id)
@@ -58,7 +63,7 @@ export default function Home() {
 
   const handleDownload = async (sticker: Sticker) => {
     try {
-      await downloadSticker(sticker.src, sticker.name)
+      await downloadSticker(sticker.src, sticker.name, sticker.type)
       toast.success('⬇️ Downloaded!')
     } catch {
       toast.error('Download failed')
@@ -93,14 +98,15 @@ export default function Home() {
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault()
     setDragOver(false)
-    const files = Array.from(e.dataTransfer.files).filter((f) =>
-      f.type.startsWith('image/')
+    const files = Array.from(e.dataTransfer.files).filter(
+      (f) => f.type.startsWith('image/') || f.type.startsWith('video/')
     )
     if (files.length === 0) {
-      toast.error('Please drop image files only')
+      toast.error('Please drop image or video files only')
       return
     }
     files.forEach((file) => {
+      const isVid = file.type.startsWith('video/')
       const reader = new FileReader()
       reader.onload = (ev) => {
         const src = ev.target?.result as string
@@ -110,6 +116,7 @@ export default function Home() {
           src,
           category: 'Custom',
           addedAt: Date.now(),
+          type: isVid ? 'video' : 'image',
         }
         setStickers((prev) => [newSticker, ...prev])
         toast.success(`🎉 "${newSticker.name}" added!`)
@@ -142,7 +149,7 @@ export default function Home() {
           <div className="text-center bg-white rounded-2xl p-10 shadow-2xl">
             <div className="text-6xl mb-3">📂</div>
             <p className="text-2xl font-bold text-pink-600">Drop stickers here!</p>
-            <p className="text-gray-500 mt-1">Images will be added automatically</p>
+            <p className="text-gray-500 mt-1">Images & MP4 videos will be added automatically</p>
           </div>
         </div>
       )}
@@ -219,19 +226,16 @@ export default function Home() {
           </div>
         )}
 
-        {/* WhatsApp usage tip */}
         <div className="mt-10 bg-white rounded-2xl border border-green-100 p-5 flex items-start gap-4 shadow-sm">
           <div className="text-3xl flex-shrink-0">💬</div>
           <div>
             <h3 className="font-bold text-gray-800 mb-1">How to use in WhatsApp</h3>
             <ol className="text-sm text-gray-600 space-y-1 list-decimal list-inside">
-              <li>Click <strong>Copy</strong> on any sticker above</li>
-              <li>Open WhatsApp Web in your browser</li>
-              <li>Click in the message box and press <kbd className="bg-gray-100 px-1.5 py-0.5 rounded text-xs font-mono">Ctrl+V</kbd> to paste</li>
-              <li>Send it! 🎉</li>
+              <li><strong>Image stickers:</strong> Click <strong>Copy</strong> → open WhatsApp Web → press <kbd className="bg-gray-100 px-1.5 py-0.5 rounded text-xs font-mono">Ctrl+V</kbd></li>
+              <li><strong>Video stickers 🎬:</strong> Click <strong>Download MP4</strong> → send as a video in WhatsApp mobile</li>
             </ol>
             <p className="text-xs text-gray-400 mt-2">
-              💡 Tip: You can also <strong>download</strong> stickers and send them as photos in WhatsApp mobile
+              💡 Tip: WhatsApp Web supports pasting images directly. For videos, send from your phone.
             </p>
           </div>
         </div>
@@ -254,3 +258,4 @@ export default function Home() {
     </div>
   )
 }
+
