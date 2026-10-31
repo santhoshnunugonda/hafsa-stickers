@@ -175,16 +175,6 @@ export default function Home() {
     await updateStickerAPI(updated)
   }
 
-  const handleReset = async () => {
-    if (!window.confirm('Reset stickers to defaults?')) return
-    setStickers(DEFAULT_STICKERS)
-    saveLocalStickers(DEFAULT_STICKERS)
-    for (const sticker of DEFAULT_STICKERS) {
-      await createStickerAPI(sticker)
-    }
-    toast.success('🔄 Reset to default stickers!')
-  }
-
   // Drag-and-drop on outer page (only active when modal is closed)
   const [dragOver, setDragOver] = useState(false)
   const handleDrop = async (e: React.DragEvent) => {
@@ -337,12 +327,6 @@ export default function Home() {
               : `${filteredStickers.length} sticker${filteredStickers.length === 1 ? '' : 's'}`}
             {search && ` for "${search}"`}
           </p>
-          <button
-            onClick={handleReset}
-            className="text-xs text-gray-400 hover:text-pink-500 transition-colors underline underline-offset-2"
-          >
-            Reset to defaults
-          </button>
         </div>
 
         {/* Sticker Grid */}
