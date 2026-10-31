@@ -1,7 +1,8 @@
 'use client'
 
 import { useState, useRef } from 'react'
-import { Sticker, CATEGORIES, isVideo } from '@/lib/stickers'
+import toast from 'react-hot-toast'
+import { Sticker, CATEGORIES, uploadMediaAPI } from '@/lib/stickers'
 
 interface EditStickerModalProps {
   sticker: Sticker
@@ -16,32 +17,72 @@ export default function EditStickerModal({ sticker, onSave, onClose }: EditStick
   const [category, setCategory] = useState(sticker.category)
   const [preview, setPreview] = useState<string>(sticker.src)
   const [previewType, setPreviewType] = useState<'image' | 'video'>(sticker.type ?? 'image')
+  const [selectedFile, setSelectedFile] = useState<File | null>(null)
+  const [isSaving, setIsSaving] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
 
   const handleFile = (file: File) => {
     const isVid = file.type.startsWith('video/')
-    if (!file.type.startsWith('image/') && !isVid) return
+    if (!file.type.startsWith('image/') && !isVid) {
+      toast.error('Please choose an image or MP4 video')
+      return
+    }
+
+    setSelectedFile(file)
+    setPreviewType(isVid ? 'video' : 'image')
+
     const reader = new FileReader()
     reader.onload = (e) => {
       setPreview(e.target?.result as string)
-      setPreviewType(isVid ? 'video' : 'image')
     }
     reader.readAsDataURL(file)
   }
 
-  const handleSave = () => {
-    onSave({
-      ...sticker,
-      name: name.trim() || sticker.name,
-      category,
-      src: preview,
-      type: previewType,
-    })
+  const handleSave = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (isSaving) return
+
+    setIsSaving(true)
+    const toastId = toast.loading('Saving changes…')
+
+    try {
+      let finalSrc = preview
+
+      if (selectedFile) {
+        try {
+          const uploadResult = await uploadMediaAPI(selectedFile)
+          if (uploadResult?.url) {
+            finalSrc = uploadResult.url
+          }
+        } catch (uploadErr) {
+          console.warn('Upload API failed, using preview data:', uploadErr)
+        }
+      }
+
+      toast.dismiss(toastId)
+      onSave({
+        ...sticker,
+        name: name.trim() || sticker.name,
+        category,
+        src: finalSrc,
+        type: previewType,
+      })
+    } catch (err) {
+      toast.dismiss(toastId)
+      toast.error('Failed to save changes')
+      setIsSaving(false)
+    }
   }
 
   return (
-    <div className="modal-backdrop fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden">
+    <div
+      className="modal-backdrop fixed inset-0 z-50 flex items-center justify-center p-4"
+      onClick={onClose}
+    >
+      <div
+        className="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden"
+        onClick={(e) => e.stopPropagation()}
+      >
         {/* Header */}
         <div className="bg-gradient-to-r from-purple-500 to-pink-500 p-5 flex items-center justify-between">
           <div>
@@ -50,16 +91,17 @@ export default function EditStickerModal({ sticker, onSave, onClose }: EditStick
           </div>
           <button
             onClick={onClose}
+            disabled={isSaving}
             className="text-white/80 hover:text-white text-2xl w-9 h-9 flex items-center justify-center rounded-full hover:bg-white/20 transition-colors"
           >
             ✕
           </button>
         </div>
 
-        <div className="p-5 space-y-4">
+        <form onSubmit={handleSave} className="p-5 space-y-4">
           {/* Current image preview */}
           <div className="flex flex-col items-center gap-3">
-            <div className="relative w-36 h-36 rounded-2xl overflow-hidden bg-gradient-to-br from-pink-50 to-purple-50 border-2 border-pink-100">
+            <div className="relative w-36 h-36 rounded-2xl overflow-hidden bg-gradient-to-br from-pink-50 to-purple-50 border-2 border-pink-100 flex items-center justify-center">
               {previewType === 'video' ? (
                 <video
                   src={preview}
@@ -78,6 +120,7 @@ export default function EditStickerModal({ sticker, onSave, onClose }: EditStick
               )}
             </div>
             <button
+              type="button"
               onClick={() => fileRef.current?.click()}
               className="text-sm text-pink-500 font-semibold hover:text-pink-700 underline underline-offset-2"
             >
@@ -86,7 +129,7 @@ export default function EditStickerModal({ sticker, onSave, onClose }: EditStick
             <input
               ref={fileRef}
               type="file"
-              accept="image/*,video/mp4,video/webm,video/ogg"
+              accept="image/*,video/mp4,video/webm,video/ogg,video/quicktime"
               className="hidden"
               onChange={(e) => e.target.files?.[0] && handleFile(e.target.files[0])}
             />
@@ -114,6 +157,7 @@ export default function EditStickerModal({ sticker, onSave, onClose }: EditStick
               {CUSTOM_CATEGORIES.map((cat) => (
                 <button
                   key={cat}
+                  type="button"
                   onClick={() => setCategory(cat)}
                   className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-all ${
                     category === cat
@@ -130,21 +174,23 @@ export default function EditStickerModal({ sticker, onSave, onClose }: EditStick
           {/* Actions */}
           <div className="flex gap-3 pt-1">
             <button
+              type="button"
               onClick={onClose}
+              disabled={isSaving}
               className="flex-1 py-2.5 rounded-xl border border-gray-200 text-gray-600 font-semibold text-sm hover:bg-gray-50 transition-colors"
             >
               Cancel
             </button>
             <button
-              onClick={handleSave}
-              className="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-purple-500 to-pink-500 text-white font-bold text-sm shadow-md hover:shadow-lg transition-all"
+              type="submit"
+              disabled={isSaving}
+              className="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-purple-500 to-pink-500 text-white font-bold text-sm shadow-md hover:shadow-lg transition-all disabled:opacity-50"
             >
-              Save Changes ✏️
+              {isSaving ? 'Saving…' : 'Save Changes ✏️'}
             </button>
           </div>
-        </div>
+        </form>
       </div>
     </div>
   )
 }
-

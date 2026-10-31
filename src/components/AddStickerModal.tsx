@@ -1,7 +1,8 @@
 'use client'
 
 import { useState, useRef } from 'react'
-import { Sticker, generateId, CATEGORIES } from '@/lib/stickers'
+import toast from 'react-hot-toast'
+import { Sticker, generateId, CATEGORIES, uploadMediaAPI } from '@/lib/stickers'
 
 interface AddStickerModalProps {
   onAdd: (sticker: Sticker) => void
@@ -15,45 +16,89 @@ export default function AddStickerModal({ onAdd, onClose }: AddStickerModalProps
   const [category, setCategory] = useState('Custom')
   const [preview, setPreview] = useState<string | null>(null)
   const [fileType, setFileType] = useState<'image' | 'video'>('image')
+  const [selectedFile, setSelectedFile] = useState<File | null>(null)
+  const [isUploading, setIsUploading] = useState(false)
   const [dragOver, setDragOver] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
 
   const handleFile = (file: File) => {
     const isVid = file.type.startsWith('video/')
-    if (!file.type.startsWith('image/') && !isVid) return
+    if (!file.type.startsWith('image/') && !isVid) {
+      toast.error('Please choose an image or MP4 video')
+      return
+    }
+
+    setSelectedFile(file)
+    setFileType(isVid ? 'video' : 'image')
+    if (!name) {
+      setName(file.name.replace(/\.[^/.]+$/, ''))
+    }
+
+    // Local instant preview
     const reader = new FileReader()
     reader.onload = (e) => {
-      const src = e.target?.result as string
-      setPreview(src)
-      setFileType(isVid ? 'video' : 'image')
-      if (!name) setName(file.name.replace(/\.[^/.]+$/, ''))
+      setPreview(e.target?.result as string)
     }
     reader.readAsDataURL(file)
   }
 
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault()
+    e.stopPropagation()
     setDragOver(false)
     const file = e.dataTransfer.files[0]
     if (file) handleFile(file)
   }
 
-  const handleSubmit = () => {
-    if (!preview) return
-    const sticker: Sticker = {
-      id: generateId(),
-      name: name.trim() || 'My Sticker',
-      src: preview,
-      category,
-      addedAt: Date.now(),
-      type: fileType,
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!preview || isUploading) return
+
+    setIsUploading(true)
+    const toastId = toast.loading('Adding sticker…')
+
+    try {
+      let finalSrc = preview
+
+      // If a real file was picked, upload it to the server/Blob
+      if (selectedFile) {
+        try {
+          const uploadResult = await uploadMediaAPI(selectedFile)
+          if (uploadResult?.url) {
+            finalSrc = uploadResult.url
+          }
+        } catch (uploadErr) {
+          console.warn('Upload API failed, using local preview data:', uploadErr)
+        }
+      }
+
+      const sticker: Sticker = {
+        id: generateId(),
+        name: name.trim() || 'My Sticker',
+        src: finalSrc,
+        category,
+        addedAt: Date.now(),
+        type: fileType,
+      }
+
+      toast.dismiss(toastId)
+      onAdd(sticker)
+    } catch (err: any) {
+      toast.dismiss(toastId)
+      toast.error('Failed to add sticker')
+      setIsUploading(false)
     }
-    onAdd(sticker)
   }
 
   return (
-    <div className="modal-backdrop fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden">
+    <div
+      className="modal-backdrop fixed inset-0 z-50 flex items-center justify-center p-4"
+      onClick={onClose}
+    >
+      <div
+        className="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden"
+        onClick={(e) => e.stopPropagation()}
+      >
         {/* Header */}
         <div className="bg-gradient-to-r from-pink-500 to-purple-500 p-5 flex items-center justify-between">
           <div>
@@ -62,25 +107,34 @@ export default function AddStickerModal({ onAdd, onClose }: AddStickerModalProps
           </div>
           <button
             onClick={onClose}
+            disabled={isUploading}
             className="text-white/80 hover:text-white text-2xl w-9 h-9 flex items-center justify-center rounded-full hover:bg-white/20 transition-colors"
           >
             ✕
           </button>
         </div>
 
-        <div className="p-5 space-y-4">
+        <form onSubmit={handleSubmit} className="p-5 space-y-4">
           {/* Upload area */}
           <div
             className={`upload-area rounded-2xl p-6 flex flex-col items-center justify-center cursor-pointer min-h-[180px] ${
               dragOver ? 'drag-over' : ''
             }`}
-            onDragOver={(e) => { e.preventDefault(); setDragOver(true) }}
-            onDragLeave={() => setDragOver(false)}
+            onDragOver={(e) => {
+              e.preventDefault()
+              e.stopPropagation()
+              setDragOver(true)
+            }}
+            onDragLeave={(e) => {
+              e.preventDefault()
+              e.stopPropagation()
+              setDragOver(false)
+            }}
             onDrop={handleDrop}
             onClick={() => fileRef.current?.click()}
           >
             {preview ? (
-              <div className="relative">
+              <div className="relative" onClick={(e) => e.stopPropagation()}>
                 {fileType === 'video' ? (
                   <video
                     src={preview}
@@ -101,7 +155,11 @@ export default function AddStickerModal({ onAdd, onClose }: AddStickerModalProps
                   {fileType === 'video' ? '🎬 MP4' : '🖼️ Image'}
                 </span>
                 <button
-                  onClick={(e) => { e.stopPropagation(); setPreview(null) }}
+                  type="button"
+                  onClick={() => {
+                    setPreview(null)
+                    setSelectedFile(null)
+                  }}
                   className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold"
                 >
                   ✕
@@ -120,7 +178,7 @@ export default function AddStickerModal({ onAdd, onClose }: AddStickerModalProps
           <input
             ref={fileRef}
             type="file"
-            accept="image/*,video/mp4,video/webm,video/ogg,video/mov"
+            accept="image/*,video/mp4,video/webm,video/ogg,video/quicktime"
             className="hidden"
             onChange={(e) => e.target.files?.[0] && handleFile(e.target.files[0])}
           />
@@ -152,6 +210,7 @@ export default function AddStickerModal({ onAdd, onClose }: AddStickerModalProps
               {CUSTOM_CATEGORIES.map((cat) => (
                 <button
                   key={cat}
+                  type="button"
                   onClick={() => setCategory(cat)}
                   className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-all ${
                     category === cat
@@ -168,20 +227,22 @@ export default function AddStickerModal({ onAdd, onClose }: AddStickerModalProps
           {/* Actions */}
           <div className="flex gap-3 pt-1">
             <button
+              type="button"
               onClick={onClose}
+              disabled={isUploading}
               className="flex-1 py-2.5 rounded-xl border border-gray-200 text-gray-600 font-semibold text-sm hover:bg-gray-50 transition-colors"
             >
               Cancel
             </button>
             <button
-              onClick={handleSubmit}
-              disabled={!preview}
+              type="submit"
+              disabled={!preview || isUploading}
               className="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-pink-500 to-purple-500 text-white font-bold text-sm shadow-md hover:shadow-lg disabled:opacity-40 disabled:cursor-not-allowed transition-all"
             >
-              Add Sticker 🎉
+              {isUploading ? 'Uploading…' : 'Add Sticker 🎉'}
             </button>
           </div>
-        </div>
+        </form>
       </div>
     </div>
   )
