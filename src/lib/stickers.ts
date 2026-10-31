@@ -68,7 +68,24 @@ export function generateId(): string {
   return `sticker-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
 }
 
-// API CLIENT FUNCTIONS
+// MERGE HELPER: Combines server and local stickers safely without losing user data
+export function mergeStickers(serverList: Sticker[] = [], localList: Sticker[] = []): Sticker[] {
+  const map = new Map<string, Sticker>()
+
+  // Add server stickers
+  for (const s of serverList) {
+    if (s && s.id) map.set(s.id, s)
+  }
+
+  // Add any local stickers that server might be missing
+  for (const s of localList) {
+    if (s && s.id && !map.has(s.id)) {
+      map.set(s.id, s)
+    }
+  }
+
+  return Array.from(map.values()).sort((a, b) => (b.addedAt || 0) - (a.addedAt || 0))
+}
 export async function fetchStickersAPI(): Promise<{ stickers: Sticker[]; syncActive: boolean }> {
   try {
     const res = await fetch(`/api/stickers?t=${Date.now()}`, {

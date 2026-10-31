@@ -12,6 +12,8 @@ import {
   deleteStickerAPI,
   uploadMediaAPI,
   saveLocalStickers,
+  loadLocalStickers,
+  mergeStickers,
   generateId,
   copyImageToClipboard,
   downloadSticker,
@@ -35,16 +37,34 @@ export default function Home() {
   const [syncActive, setSyncActive] = useState(false)
   const [showSyncBanner, setShowSyncBanner] = useState(true)
 
-  // Load stickers from server API
+  // Load stickers safely from server API and merge with local cache
   const loadStickers = useCallback(async (isManualRefresh = false) => {
     if (isManualRefresh) setIsSyncing(true)
     try {
+      const local = loadLocalStickers()
       const data = await fetchStickersAPI()
-      if (Array.isArray(data.stickers) && data.stickers.length > 0) {
-        setStickers(data.stickers)
-        saveLocalStickers(data.stickers)
+
+      const serverStickers = Array.isArray(data.stickers) ? data.stickers : []
+      const merged = mergeStickers(serverStickers, local)
+
+      if (merged.length > 0) {
+        setStickers(merged)
+        saveLocalStickers(merged)
       }
+
       setSyncActive(data.syncActive)
+
+      // Auto-upload any local stickers that server didn't have yet
+      if (data.syncActive) {
+        const serverIds = new Set(serverStickers.map((s) => s.id))
+        const missingOnServer = local.filter((s) => !serverIds.has(s.id))
+        if (missingOnServer.length > 0) {
+          for (const item of missingOnServer) {
+            await createStickerAPI(item)
+          }
+        }
+      }
+
       if (isManualRefresh) toast.success('Stickers refreshed from cloud! 🔄')
     } catch (err) {
       console.error('Failed to load stickers:', err)
@@ -67,10 +87,10 @@ export default function Home() {
       fetchStickersAPI().then((data) => {
         if (Array.isArray(data.stickers) && data.stickers.length > 0) {
           setStickers((prev) => {
-            // Only update if changed
-            if (JSON.stringify(prev) !== JSON.stringify(data.stickers)) {
-              saveLocalStickers(data.stickers)
-              return data.stickers
+            const merged = mergeStickers(data.stickers, prev)
+            if (JSON.stringify(prev) !== JSON.stringify(merged)) {
+              saveLocalStickers(merged)
+              return merged
             }
             return prev
           })
