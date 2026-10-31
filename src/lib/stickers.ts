@@ -1,3 +1,5 @@
+import { upload } from '@vercel/blob/client'
+
 export interface Sticker {
   id: string
   name: string
@@ -74,22 +76,25 @@ export function mergeStickers(serverList: Sticker[] = [], localList: Sticker[] =
 
   // Add server stickers
   for (const s of serverList) {
-    if (s && s.id) map.set(s.id, s)
+    if (s && s.id && s.src) map.set(s.id, s)
   }
 
   // Add any local stickers that server might be missing
   for (const s of localList) {
-    if (s && s.id && !map.has(s.id)) {
+    if (s && s.id && s.src && !map.has(s.id)) {
       map.set(s.id, s)
     }
   }
 
   return Array.from(map.values()).sort((a, b) => (b.addedAt || 0) - (a.addedAt || 0))
 }
+
+// API CLIENT FUNCTIONS
 export async function fetchStickersAPI(): Promise<{ stickers: Sticker[]; syncActive: boolean }> {
   try {
     const res = await fetch(`/api/stickers?t=${Date.now()}`, {
       cache: 'no-store',
+      headers: { 'Cache-Control': 'no-cache' },
     })
     if (res.ok) {
       const data = await res.json()
@@ -120,6 +125,25 @@ export async function createStickerAPI(sticker: Sticker): Promise<{ sticker: Sti
   return { sticker, syncActive: false }
 }
 
+// Batch save multiple stickers at once to eliminate race conditions
+export async function createStickersBatchAPI(
+  stickers: Sticker[]
+): Promise<{ stickers: Sticker[]; syncActive: boolean }> {
+  try {
+    const res = await fetch('/api/stickers', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ stickers }),
+    })
+    if (res.ok) {
+      return await res.json()
+    }
+  } catch (err) {
+    console.warn('Batch API create failed:', err)
+  }
+  return { stickers, syncActive: false }
+}
+
 export async function updateStickerAPI(sticker: Sticker): Promise<{ sticker: Sticker; syncActive: boolean }> {
   try {
     const res = await fetch('/api/stickers', {
@@ -148,7 +172,24 @@ export async function deleteStickerAPI(id: string): Promise<boolean> {
   }
 }
 
+// DIRECT CLIENT UPLOAD WITH SERVER FALLBACK
 export async function uploadMediaAPI(file: File): Promise<{ url: string; syncActive: boolean }> {
+  const safeFilename = `${Date.now()}-${file.name.replace(/[^a-zA-Z0-9.-]/g, '_')}`
+
+  // 1. Attempt direct client-to-blob upload first (streams up to 500MB without hitting serverless size limits)
+  try {
+    const blob = await upload(safeFilename, file, {
+      access: 'public',
+      handleUploadUrl: '/api/upload',
+    })
+    if (blob && blob.url) {
+      return { url: blob.url, syncActive: true }
+    }
+  } catch (clientErr) {
+    console.warn('Direct client upload not available, falling back to server upload:', clientErr)
+  }
+
+  // 2. Fallback to standard server FormData POST
   const formData = new FormData()
   formData.append('file', file)
 
@@ -196,7 +237,6 @@ export async function copyImageToClipboard(src: string): Promise<void> {
     throw new Error('VIDEO_COPY_NOT_SUPPORTED')
   }
 
-  // Fetch the image from URL (data URL, public path, or Blob CDN)
   const res = await fetch(src)
   const blob = await res.blob()
   const pngBlob = await convertToPng(blob)

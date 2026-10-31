@@ -8,6 +8,7 @@ import {
   CATEGORIES,
   fetchStickersAPI,
   createStickerAPI,
+  createStickersBatchAPI,
   updateStickerAPI,
   deleteStickerAPI,
   uploadMediaAPI,
@@ -201,29 +202,44 @@ export default function Home() {
       return
     }
 
-    const toastId = toast.loading(`Uploading ${files.length} sticker${files.length > 1 ? 's' : ''}…`)
+    const toastId = toast.loading(`Uploading ${files.length} sticker${files.length > 1 ? 's' : ''} to cloud…`)
+    const uploadedBatch: Sticker[] = []
 
-    for (const file of files) {
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i]
       const isVid = file.type.startsWith('video/')
       try {
         const uploadResult = await uploadMediaAPI(file)
-        const newSticker: Sticker = {
-          id: generateId(),
-          name: file.name.replace(/\.[^/.]+$/, ''),
-          src: uploadResult.url,
-          category: 'Custom',
-          addedAt: Date.now(),
-          type: isVid ? 'video' : 'image',
+        if (uploadResult?.url) {
+          uploadedBatch.push({
+            id: generateId(),
+            name: file.name.replace(/\.[^/.]+$/, ''),
+            src: uploadResult.url,
+            category: 'Custom',
+            addedAt: Date.now() + i,
+            type: isVid ? 'video' : 'image',
+          })
         }
-        setStickers((prev) => [newSticker, ...prev.filter((s) => s.id !== newSticker.id)])
-        await createStickerAPI(newSticker)
       } catch (err) {
-        console.error('File upload failed:', err)
+        console.error(`Failed to upload ${file.name}:`, err)
       }
     }
 
-    toast.dismiss(toastId)
-    toast.success('🎉 New stickers added across all devices!')
+    if (uploadedBatch.length > 0) {
+      // Optimistically update UI
+      setStickers((prev) => {
+        const newIds = new Set(uploadedBatch.map((s) => s.id))
+        return [...uploadedBatch, ...prev.filter((s) => !newIds.has(s.id))]
+      })
+
+      // Batch save to backend database
+      await createStickersBatchAPI(uploadedBatch)
+      toast.dismiss(toastId)
+      toast.success(`🎉 ${uploadedBatch.length} stickers added & synced across all devices!`)
+    } else {
+      toast.dismiss(toastId)
+      toast.error('Failed to upload stickers. Please try again.')
+    }
   }
 
   if (!mounted) {

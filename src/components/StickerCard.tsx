@@ -29,7 +29,22 @@ export default function StickerCard({
       {/* Sticker Media */}
       <div className="aspect-square relative bg-gradient-to-br from-pink-50 to-purple-50 overflow-hidden">
         {imgError ? (
-          <div className="w-full h-full flex items-center justify-center text-4xl">🖼️</div>
+          <div className="w-full h-full flex flex-col items-center justify-center p-3 text-center bg-pink-50/60 border border-pink-100">
+            <span className="text-3xl mb-1">🖼️</span>
+            <p className="text-[11px] font-semibold text-gray-600 truncate max-w-full">
+              {sticker.name}
+            </p>
+            <p className="text-[10px] text-gray-400 mt-0.5">Image failed to load</p>
+            <button
+              onClick={(e) => {
+                e.stopPropagation()
+                onDelete()
+              }}
+              className="mt-2 text-xs font-bold text-red-500 hover:text-red-700 bg-white shadow-sm border border-red-200 px-3 py-1 rounded-full transition-transform hover:scale-105"
+            >
+              🗑️ Remove
+            </button>
+          </div>
         ) : video ? (
           <>
             <span className="absolute top-2 right-10 z-10 bg-black/75 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-md backdrop-blur-sm">
@@ -55,36 +70,38 @@ export default function StickerCard({
         )}
 
         {/* Overlay actions on desktop hover */}
-        <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex items-center justify-center gap-2">
-          {video ? (
-            <button
-              onClick={onDownload}
-              className="bg-white hover:bg-green-50 rounded-full p-2.5 shadow-lg transition-transform hover:scale-110 tooltip"
-              data-tooltip="Download MP4"
-            >
-              <span className="text-lg">⬇️</span>
-            </button>
-          ) : (
-            <>
-              <button
-                onClick={onCopy}
-                className={`${
-                  copied ? 'bg-green-500 text-white' : 'bg-white hover:bg-pink-50'
-                } rounded-full p-2.5 shadow-lg transition-transform hover:scale-110 tooltip`}
-                data-tooltip={copied ? 'Copied!' : 'Copy for WhatsApp'}
-              >
-                <span className="text-lg">{copied ? '✅' : '📋'}</span>
-              </button>
+        {!imgError && (
+          <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex items-center justify-center gap-2">
+            {video ? (
               <button
                 onClick={onDownload}
-                className="bg-white hover:bg-blue-50 rounded-full p-2.5 shadow-lg transition-transform hover:scale-110 tooltip"
-                data-tooltip="Download"
+                className="bg-white hover:bg-green-50 rounded-full p-2.5 shadow-lg transition-transform hover:scale-110 tooltip"
+                data-tooltip="Download MP4"
               >
                 <span className="text-lg">⬇️</span>
               </button>
-            </>
-          )}
-        </div>
+            ) : (
+              <>
+                <button
+                  onClick={onCopy}
+                  className={`${
+                    copied ? 'bg-green-500 text-white' : 'bg-white hover:bg-pink-50'
+                  } rounded-full p-2.5 shadow-lg transition-transform hover:scale-110 tooltip`}
+                  data-tooltip={copied ? 'Copied!' : 'Copy for WhatsApp'}
+                >
+                  <span className="text-lg">{copied ? '✅' : '📋'}</span>
+                </button>
+                <button
+                  onClick={onDownload}
+                  className="bg-white hover:bg-blue-50 rounded-full p-2.5 shadow-lg transition-transform hover:scale-110 tooltip"
+                  data-tooltip="Download"
+                >
+                  <span className="text-lg">⬇️</span>
+                </button>
+              </>
+            )}
+          </div>
+        )}
 
         {/* Category badge */}
         <span className="absolute top-2 left-2 bg-white/90 text-pink-600 text-[11px] font-bold px-2 py-0.5 rounded-full shadow-sm backdrop-blur-sm">
@@ -145,7 +162,14 @@ export default function StickerCard({
       </div>
 
       {/* Action button bar */}
-      {video ? (
+      {imgError ? (
+        <button
+          onClick={onDelete}
+          className="w-full py-2.5 text-xs font-bold bg-red-50 text-red-500 hover:bg-red-500 hover:text-white transition-all duration-200"
+        >
+          🗑️ Remove Broken Sticker
+        </button>
+      ) : video ? (
         <button
           onClick={onDownload}
           className="w-full py-2.5 text-xs font-bold bg-gradient-to-r from-purple-50 to-pink-50 text-purple-600 hover:from-purple-500 hover:to-pink-500 hover:text-white transition-all duration-200"

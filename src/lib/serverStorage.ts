@@ -1,37 +1,59 @@
 import { put, list } from '@vercel/blob'
-import { Sticker, DEFAULT_STICKERS } from './stickers'
+import { Sticker, DEFAULT_STICKERS, mergeStickers, generateId } from './stickers'
 
 const DB_FILENAME = 'stickers-db.json'
 
-// In-memory fallback if Blob token is not configured yet
+// In-memory fallback
 let memoryStickers: Sticker[] = [...DEFAULT_STICKERS]
 
+// Mutex queue to prevent race conditions during concurrent writes
+let writeQueue: Promise<any> = Promise.resolve()
+
+export function getBlobToken(): string | undefined {
+  if (process.env.BLOB_READ_WRITE_TOKEN) return process.env.BLOB_READ_WRITE_TOKEN
+  if (process.env.VERCEL_BLOB_READ_WRITE_TOKEN) return process.env.VERCEL_BLOB_READ_WRITE_TOKEN
+  if (process.env.blob_read_write_token) return process.env.blob_read_write_token
+
+  // Find any environment variable containing both BLOB and TOKEN
+  for (const [key, value] of Object.entries(process.env)) {
+    if (key.toUpperCase().includes('BLOB') && key.toUpperCase().includes('TOKEN') && value) {
+      return value
+    }
+  }
+  return undefined
+}
+
 export function isBlobConfigured(): boolean {
-  return !!process.env.BLOB_READ_WRITE_TOKEN
+  return !!getBlobToken()
 }
 
 export async function getStickersFromStorage(): Promise<{ stickers: Sticker[]; syncActive: boolean }> {
-  if (!isBlobConfigured()) {
+  const token = getBlobToken()
+  if (!token) {
     return { stickers: memoryStickers, syncActive: false }
   }
 
   try {
-    const { blobs } = await list({ prefix: DB_FILENAME })
-    const dbBlob = blobs.find((b) => b.pathname === DB_FILENAME) || blobs[0]
+    const { blobs } = await list({ token })
+    const dbBlob = blobs.find((b) => b.pathname === DB_FILENAME)
 
     if (dbBlob) {
       const response = await fetch(`${dbBlob.url}?t=${Date.now()}`, {
         cache: 'no-store',
+        headers: { 'Cache-Control': 'no-cache' },
       })
       if (response.ok) {
         const data = await response.json()
-        if (Array.isArray(data) && data.length > 0) {
-          return { stickers: data, syncActive: true }
+        if (Array.isArray(data)) {
+          // Always ensure default stickers are present in the list
+          const merged = mergeStickers(data, DEFAULT_STICKERS)
+          memoryStickers = merged
+          return { stickers: merged, syncActive: true }
         }
       }
     }
 
-    // If no db file exists in Blob yet, initialize it with DEFAULT_STICKERS
+    // Initialize with default stickers if db doesn't exist
     await saveStickersToStorage(DEFAULT_STICKERS)
     return { stickers: DEFAULT_STICKERS, syncActive: true }
   } catch (err) {
@@ -41,10 +63,10 @@ export async function getStickersFromStorage(): Promise<{ stickers: Sticker[]; s
 }
 
 export async function saveStickersToStorage(stickers: Sticker[]): Promise<boolean> {
-  // Always update in-memory cache
   memoryStickers = [...stickers]
+  const token = getBlobToken()
 
-  if (!isBlobConfigured()) {
+  if (!token) {
     return false
   }
 
@@ -53,6 +75,7 @@ export async function saveStickersToStorage(stickers: Sticker[]): Promise<boolea
       access: 'public',
       addRandomSuffix: false,
       contentType: 'application/json',
+      token,
     })
     return true
   } catch (err) {
@@ -61,15 +84,72 @@ export async function saveStickersToStorage(stickers: Sticker[]): Promise<boolea
   }
 }
 
+// Atomic batch addition to prevent race conditions when uploading multiple stickers
+export async function addStickersBatch(
+  newStickers: Sticker[]
+): Promise<{ stickers: Sticker[]; syncActive: boolean }> {
+  return new Promise((resolve, reject) => {
+    writeQueue = writeQueue.then(async () => {
+      try {
+        const { stickers } = await getStickersFromStorage()
+        const newIds = new Set(newStickers.map((s) => s.id))
+        const remaining = stickers.filter((s) => !newIds.has(s.id))
+        const combined = [...newStickers, ...remaining]
+
+        const saved = await saveStickersToStorage(combined)
+        resolve({ stickers: combined, syncActive: saved && isBlobConfigured() })
+      } catch (err) {
+        reject(err)
+      }
+    })
+  })
+}
+
+export async function removeStickerById(
+  id: string
+): Promise<{ stickers: Sticker[]; syncActive: boolean }> {
+  return new Promise((resolve, reject) => {
+    writeQueue = writeQueue.then(async () => {
+      try {
+        const { stickers } = await getStickersFromStorage()
+        const updated = stickers.filter((s) => s.id !== id)
+        const saved = await saveStickersToStorage(updated)
+        resolve({ stickers: updated, syncActive: saved && isBlobConfigured() })
+      } catch (err) {
+        reject(err)
+      }
+    })
+  })
+}
+
+export async function updateStickerInStorage(
+  updatedSticker: Sticker
+): Promise<{ stickers: Sticker[]; syncActive: boolean }> {
+  return new Promise((resolve, reject) => {
+    writeQueue = writeQueue.then(async () => {
+      try {
+        const { stickers } = await getStickersFromStorage()
+        const updated = stickers.map((s) => (s.id === updatedSticker.id ? updatedSticker : s))
+        const saved = await saveStickersToStorage(updated)
+        resolve({ stickers: updated, syncActive: saved && isBlobConfigured() })
+      } catch (err) {
+        reject(err)
+      }
+    })
+  })
+}
+
 export async function uploadMediaToBlob(
   file: File,
   filename: string
 ): Promise<{ url: string; syncActive: boolean }> {
-  if (isBlobConfigured()) {
+  const token = getBlobToken()
+  if (token) {
     try {
       const safeName = filename.replace(/[^a-zA-Z0-9.-]/g, '_')
       const blob = await put(`stickers/${Date.now()}-${safeName}`, file, {
         access: 'public',
+        token,
       })
       return { url: blob.url, syncActive: true }
     } catch (err) {
@@ -84,4 +164,3 @@ export async function uploadMediaToBlob(
   const dataUrl = `data:${mimeType};base64,${buffer.toString('base64')}`
   return { url: dataUrl, syncActive: false }
 }
-
