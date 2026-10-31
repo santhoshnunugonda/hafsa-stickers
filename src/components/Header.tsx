@@ -30,15 +30,10 @@ export default function Header({
               <h1 className="text-lg font-black bg-gradient-to-r from-pink-500 to-purple-500 bg-clip-text text-transparent leading-tight">
                 Hafsa Stickers
               </h1>
-              {syncActive ? (
+              {syncActive && (
                 <span className="hidden sm:inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-green-100 text-green-700">
                   <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-ping"></span>
                   Cloud Synced
-                </span>
-              ) : (
-                <span className="hidden sm:inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-amber-100 text-amber-700" title="Connect Vercel Blob in your Vercel Dashboard to sync automatically across all phones & laptops">
-                  <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
-                  Ready to Sync
                 </span>
               )}
             </div>

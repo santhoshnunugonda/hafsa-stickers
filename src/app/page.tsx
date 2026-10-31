@@ -36,7 +36,6 @@ export default function Home() {
   const [mounted, setMounted] = useState(false)
   const [isSyncing, setIsSyncing] = useState(false)
   const [syncActive, setSyncActive] = useState(false)
-  const [showSyncBanner, setShowSyncBanner] = useState(true)
 
   // Load stickers safely from server API and merge with local cache
   const loadStickers = useCallback(async (isManualRefresh = false) => {
@@ -55,15 +54,11 @@ export default function Home() {
 
       setSyncActive(data.syncActive)
 
-      // Auto-upload any local stickers that server didn't have yet
-      if (data.syncActive) {
-        const serverIds = new Set(serverStickers.map((s) => s.id))
-        const missingOnServer = local.filter((s) => !serverIds.has(s.id))
-        if (missingOnServer.length > 0) {
-          for (const item of missingOnServer) {
-            await createStickerAPI(item)
-          }
-        }
+      // Always auto-upload any local stickers that server didn't have yet in one atomic batch
+      const serverIds = new Set(serverStickers.map((s) => s.id))
+      const missingOnServer = local.filter((s) => !serverIds.has(s.id) && s.src)
+      if (missingOnServer.length > 0) {
+        await createStickersBatchAPI(missingOnServer)
       }
 
       if (isManualRefresh) toast.success('Stickers refreshed from cloud! 🔄')
@@ -275,31 +270,6 @@ export default function Home() {
         isSyncing={isSyncing}
         syncActive={syncActive}
       />
-
-      {/* Cloud Sync Setup Notice (if Vercel Blob is not yet enabled) */}
-      {!syncActive && showSyncBanner && (
-        <div className="max-w-7xl mx-auto px-4 pt-4">
-          <div className="bg-gradient-to-r from-purple-500/10 via-pink-500/10 to-rose-500/10 border border-pink-200 rounded-2xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-sm text-gray-700 shadow-sm">
-            <div className="flex items-start gap-3">
-              <span className="text-2xl flex-shrink-0">☁️</span>
-              <div>
-                <p className="font-bold text-gray-800">
-                  Enable Multi-Device Cloud Sync on Vercel
-                </p>
-                <p className="text-xs text-gray-600 mt-0.5">
-                  To automatically sync stickers across all phones &amp; computers: In your Vercel Dashboard → open <strong>hafsa-stickers</strong> → click <strong>Storage</strong> → <strong>Create Blob</strong> → <strong>Connect</strong>.
-                </p>
-              </div>
-            </div>
-            <button
-              onClick={() => setShowSyncBanner(false)}
-              className="text-xs text-gray-400 hover:text-gray-600 font-semibold self-end sm:self-center px-2 py-1 rounded-md"
-            >
-              ✕ Dismiss
-            </button>
-          </div>
-        </div>
-      )}
 
       <main className="max-w-7xl mx-auto px-4 pb-16 pt-6">
         {/* Category Filter */}

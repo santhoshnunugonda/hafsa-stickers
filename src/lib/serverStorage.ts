@@ -24,17 +24,22 @@ export function getBlobToken(): string | undefined {
 }
 
 export function isBlobConfigured(): boolean {
-  return !!getBlobToken()
+  return !!(
+    getBlobToken() ||
+    process.env.BLOB_STORE_ID ||
+    process.env.VERCEL_OIDC_TOKEN
+  )
 }
 
 export async function getStickersFromStorage(): Promise<{ stickers: Sticker[]; syncActive: boolean }> {
-  const token = getBlobToken()
-  if (!token) {
+  if (!isBlobConfigured()) {
     return { stickers: memoryStickers, syncActive: false }
   }
 
   try {
-    const { blobs } = await list({ token })
+    const token = getBlobToken()
+    const listOptions = token ? { token } : undefined
+    const { blobs } = await list(listOptions)
     const dbBlob = blobs.find((b) => b.pathname === DB_FILENAME)
 
     if (dbBlob) {
@@ -64,19 +69,21 @@ export async function getStickersFromStorage(): Promise<{ stickers: Sticker[]; s
 
 export async function saveStickersToStorage(stickers: Sticker[]): Promise<boolean> {
   memoryStickers = [...stickers]
-  const token = getBlobToken()
 
-  if (!token) {
+  if (!isBlobConfigured()) {
     return false
   }
 
   try {
-    await put(DB_FILENAME, JSON.stringify(stickers, null, 2), {
+    const token = getBlobToken()
+    const putOptions: any = {
       access: 'public',
       addRandomSuffix: false,
       contentType: 'application/json',
-      token,
-    })
+    }
+    if (token) putOptions.token = token
+
+    await put(DB_FILENAME, JSON.stringify(stickers, null, 2), putOptions)
     return true
   } catch (err) {
     console.error('Error saving to Vercel Blob:', err)
@@ -143,14 +150,14 @@ export async function uploadMediaToBlob(
   file: File,
   filename: string
 ): Promise<{ url: string; syncActive: boolean }> {
-  const token = getBlobToken()
-  if (token) {
+  if (isBlobConfigured()) {
     try {
+      const token = getBlobToken()
       const safeName = filename.replace(/[^a-zA-Z0-9.-]/g, '_')
-      const blob = await put(`stickers/${Date.now()}-${safeName}`, file, {
-        access: 'public',
-        token,
-      })
+      const putOptions: any = { access: 'public' }
+      if (token) putOptions.token = token
+
+      const blob = await put(`stickers/${Date.now()}-${safeName}`, file, putOptions)
       return { url: blob.url, syncActive: true }
     } catch (err) {
       console.error('Vercel Blob upload failed, falling back:', err)
