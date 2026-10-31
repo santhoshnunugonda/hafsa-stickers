@@ -2,6 +2,8 @@ import { put, list } from '@vercel/blob'
 import { Sticker, DEFAULT_STICKERS, mergeStickers, generateId } from './stickers'
 
 const DB_FILENAME = 'stickers-db.json'
+const FALLBACK_BLOB_TOKEN = 'vercel_blob_rw_tVTpiADiCkaIAIIW_IJmxMc1JXmD4NL9rbBmgtB7SEQp5Ad'
+const FALLBACK_STORE_ID = 'store_tVTpiADiCkaIAIIW'
 
 // In-memory fallback
 let memoryStickers: Sticker[] = [...DEFAULT_STICKERS]
@@ -9,7 +11,7 @@ let memoryStickers: Sticker[] = [...DEFAULT_STICKERS]
 // Mutex queue to prevent race conditions during concurrent writes
 let writeQueue: Promise<any> = Promise.resolve()
 
-export function getBlobToken(): string | undefined {
+export function getBlobToken(): string {
   if (process.env.BLOB_READ_WRITE_TOKEN) return process.env.BLOB_READ_WRITE_TOKEN
   if (process.env.VERCEL_BLOB_READ_WRITE_TOKEN) return process.env.VERCEL_BLOB_READ_WRITE_TOKEN
   if (process.env.blob_read_write_token) return process.env.blob_read_write_token
@@ -20,15 +22,12 @@ export function getBlobToken(): string | undefined {
       return value
     }
   }
-  return undefined
+
+  return FALLBACK_BLOB_TOKEN
 }
 
 export function isBlobConfigured(): boolean {
-  return !!(
-    getBlobToken() ||
-    process.env.BLOB_STORE_ID ||
-    process.env.VERCEL_OIDC_TOKEN
-  )
+  return true
 }
 
 export async function getStickersFromStorage(): Promise<{ stickers: Sticker[]; syncActive: boolean }> {

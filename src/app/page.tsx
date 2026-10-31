@@ -1,3 +1,4 @@
+// Hafsa Stickers - Cloud Synced with Vercel Blob
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
