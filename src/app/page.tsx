@@ -59,7 +59,11 @@ export default function Home() {
       const serverIds = new Set(serverStickers.map((s) => s.id))
       const missingOnServer = local.filter((s) => !serverIds.has(s.id) && s.src)
       if (missingOnServer.length > 0) {
-        await createStickersBatchAPI(missingOnServer)
+        const batchResult = await createStickersBatchAPI(missingOnServer)
+        if (Array.isArray(batchResult.stickers) && batchResult.stickers.length > 0) {
+          setStickers(batchResult.stickers)
+          saveLocalStickers(batchResult.stickers)
+        }
       }
 
       if (isManualRefresh) toast.success('Stickers refreshed from cloud! 🔄')

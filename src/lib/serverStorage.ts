@@ -78,6 +78,8 @@ export async function saveStickersToStorage(stickers: Sticker[]): Promise<boolea
     const putOptions: any = {
       access: 'public',
       addRandomSuffix: false,
+      allowOverwrite: true,
+      cacheControlMaxAge: 0,
       contentType: 'application/json',
     }
     if (token) putOptions.token = token
