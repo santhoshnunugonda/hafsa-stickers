@@ -1,0 +1,105 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --gradient-start: #ff6eb4;
+  --gradient-mid: #c77dff;
+  --gradient-end: #7b5ea7;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  min-height: 100vh;
+  background: linear-gradient(135deg, #fff0f7 0%, #f3e8ff 50%, #ede9fe 100%);
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 10px;
+}
+::-webkit-scrollbar-thumb {
+  background: #f472b6;
+  border-radius: 10px;
+}
+
+/* Sticker card hover effect */
+.sticker-card {
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.sticker-card:hover {
+  transform: translateY(-4px) scale(1.02);
+  box-shadow: 0 20px 40px rgba(236, 72, 153, 0.25);
+}
+
+/* Copy button animation */
+@keyframes copied-pulse {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.1); }
+  100% { transform: scale(1); }
+}
+.copied-animation {
+  animation: copied-pulse 0.3s ease;
+}
+
+/* Floating sparkle animation */
+@keyframes float {
+  0%, 100% { transform: translateY(0px) rotate(0deg); }
+  33% { transform: translateY(-8px) rotate(5deg); }
+  66% { transform: translateY(-4px) rotate(-3deg); }
+}
+.float-animation {
+  animation: float 3s ease-in-out infinite;
+}
+
+/* WhatsApp green glow */
+.whatsapp-glow {
+  box-shadow: 0 0 20px rgba(37, 211, 102, 0.4);
+}
+
+/* Modal backdrop blur */
+.modal-backdrop {
+  backdrop-filter: blur(8px);
+  background: rgba(0, 0, 0, 0.5);
+}
+
+/* Upload area */
+.upload-area {
+  border: 2px dashed #f472b6;
+  transition: all 0.2s ease;
+}
+.upload-area:hover, .upload-area.drag-over {
+  border-color: #ec4899;
+  background: rgba(244, 114, 182, 0.05);
+}
+
+/* Tooltip */
+.tooltip {
+  position: relative;
+}
+.tooltip::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(0,0,0,0.8);
+  color: white;
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 12px;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s;
+}
+.tooltip:hover::after {
+  opacity: 1;
+}
