@@ -24,7 +24,7 @@ export default function Header({
       <div className="max-w-7xl mx-auto px-4 py-3 flex flex-wrap items-center justify-between gap-3">
         {/* Logo / Title */}
         <div className="flex items-center gap-3 flex-shrink-0">
-          <span className="text-2xl animate-pulse">💖</span>
+          <span className="text-2xl animate-bounce">🐒</span>
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-lg font-black bg-gradient-to-r from-pink-500 to-purple-500 bg-clip-text text-transparent leading-tight">

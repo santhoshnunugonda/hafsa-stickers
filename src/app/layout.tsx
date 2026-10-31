@@ -3,13 +3,13 @@ import './globals.css'
 import { Toaster } from 'react-hot-toast'
 
 export const metadata: Metadata = {
-  title: 'Hafsa Stickers 💖',
+  title: 'Hafsa Stickers 🐒',
   description: 'Your personal sticker collection — copy & use in WhatsApp instantly!',
   icons: {
     icon: '/favicon.ico',
   },
   openGraph: {
-    title: 'Hafsa Stickers 💖',
+    title: 'Hafsa Stickers 🐒',
     description: 'Your personal sticker collection — copy & use in WhatsApp instantly!',
     type: 'website',
   },

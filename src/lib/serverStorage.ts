@@ -84,3 +84,4 @@ export async function uploadMediaToBlob(
   const dataUrl = `data:${mimeType};base64,${buffer.toString('base64')}`
   return { url: dataUrl, syncActive: false }
 }
+

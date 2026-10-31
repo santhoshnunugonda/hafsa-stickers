@@ -210,7 +210,7 @@ export default function Home() {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
-          <div className="text-6xl mb-4 float-animation">💖</div>
+          <div className="text-6xl mb-4 float-animation">🐒</div>
           <p className="text-pink-500 font-semibold text-lg">Loading Hafsa Stickers…</p>
         </div>
       </div>
