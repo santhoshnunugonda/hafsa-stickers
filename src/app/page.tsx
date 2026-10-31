@@ -16,6 +16,7 @@ import {
   saveLocalStickers,
   loadLocalStickers,
   mergeStickers,
+  dataUrlToFile,
   generateId,
   copyImageToClipboard,
   downloadSticker,
@@ -55,15 +56,46 @@ export default function Home() {
 
       setSyncActive(data.syncActive)
 
-      // Always auto-upload any local stickers that server didn't have yet in one atomic batch
+      // Auto-upload any local stickers that server is missing
       const serverIds = new Set(serverStickers.map((s) => s.id))
       const missingOnServer = local.filter((s) => !serverIds.has(s.id) && s.src)
       if (missingOnServer.length > 0) {
-        const batchResult = await createStickersBatchAPI(missingOnServer)
-        if (Array.isArray(batchResult.stickers) && batchResult.stickers.length > 0) {
-          setStickers(batchResult.stickers)
-          saveLocalStickers(batchResult.stickers)
+        toast.loading(`Syncing ${missingOnServer.length} stickers to cloud…`, { id: 'sync-prog' })
+        const readyToSync: Sticker[] = []
+
+        for (let i = 0; i < missingOnServer.length; i++) {
+          const s = missingOnServer[i]
+          let finalSrc = s.src
+
+          // If the sticker was saved as an offline base64 data URL, upload to Blob CDN first!
+          if (finalSrc.startsWith('data:')) {
+            try {
+              const file = dataUrlToFile(finalSrc, `${s.name.replace(/[^a-zA-Z0-9]/g, '_')}-${i}.png`)
+              const uploadRes = await uploadMediaAPI(file)
+              if (uploadRes?.url) {
+                finalSrc = uploadRes.url
+              }
+            } catch (err) {
+              console.warn('Failed to upload base64 to Blob:', err)
+            }
+          }
+          readyToSync.push({ ...s, src: finalSrc })
         }
+
+        // Send in safe chunks of 4 stickers to easily stay under Vercel payload limits
+        for (let i = 0; i < readyToSync.length; i += 4) {
+          const chunk = readyToSync.slice(i, i + 4)
+          await createStickersBatchAPI(chunk)
+        }
+
+        // Fetch the fresh combined list from server
+        const fresh = await fetchStickersAPI()
+        if (Array.isArray(fresh.stickers) && fresh.stickers.length > 0) {
+          setStickers(fresh.stickers)
+          saveLocalStickers(fresh.stickers)
+        }
+        toast.dismiss('sync-prog')
+        toast.success(`🎉 ${readyToSync.length} stickers synced to cloud!`)
       }
 
       if (isManualRefresh) toast.success('Stickers refreshed from cloud! 🔄')
